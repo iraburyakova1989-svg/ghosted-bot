@@ -1,5 +1,7 @@
 import os
 import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 import google.generativeai as genai
@@ -20,6 +22,20 @@ QUESTIONS = [
     ("q3", "Он пишет первым сейчас?", [["Никогда", "Иногда, но редко"], ["Только по делу", "Иногда как раньше"]]),
     ("q4", "Были ли между вами отношения?", [["Да, официальные"], ["Что-то было, без статуса"], ["Флирт и близость"], ["Нет, только общение"]]),
 ]
+
+# ── ПРОСТОЙ ВЕБ-СЕРВЕР ДЛЯ RENDER ──────────────────────
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+    def log_message(self, format, *args):
+        pass
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    server.serve_forever()
 
 # ── HANDLERS ────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -85,10 +101,7 @@ async def q5(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text)
     await asyncio.sleep(1)
-    await update.message.reply_text(
-        "Хочешь разобрать другую ситуацию? Нажми /start",
-        reply_markup=ReplyKeyboardRemove()
-    )
+    await update.message.reply_text("Хочешь разобрать другую ситуацию? Нажми /start")
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,6 +110,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ── MAIN ────────────────────────────────────────────────
 def main():
+    # Запускаем веб-сервер в отдельном потоке
+    web_thread = threading.Thread(target=run_web_server, daemon=True)
+    web_thread.start()
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     conv = ConversationHandler(
