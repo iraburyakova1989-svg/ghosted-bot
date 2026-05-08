@@ -14,77 +14,51 @@ model = genai.GenerativeModel("gemini-2.0-flash")
 
 Q1, Q2, Q3, Q4, Q5 = range(5)
 
-QUESTIONS = [
-    ("q1", "Как давно вы знакомы?", [["Несколько недель", "1–3 месяца"], ["3–6 месяцев", "Полгода–год"], ["Больше года"]]),
-    ("q2", "Кто исчез / взял дистанцию?", [["Он перестал писать первым"], ["Отвечает, но редко и холодно"], ["Полностью пропал"], ["Сказал, что ему нужно время"]]),
-    ("q3", "Он пишет первым сейчас?", [["Никогда", "Иногда, но редко"], ["Только по делу", "Иногда как раньше"]]),
-    ("q4", "Были ли между вами отношения?", [["Да, официальные"], ["Что-то было, без статуса"], ["Флирт и близость"], ["Нет, только общение"]]),
-]
-
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running")
-    def log_message(self, format, *args):
+        self.wfile.write(b"ok")
+    def log_message(self, *args):
         pass
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthHandler)
-    server.serve_forever()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text(
-        "Он не запутался.\n*Ты просто не увидела правду.*\n\nОпиши ситуацию — получишь честный разбор без утешений.",
-        parse_mode="Markdown"
-    )
-    keyboard = ReplyKeyboardMarkup(QUESTIONS[0][2], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text(f"*01 —* {QUESTIONS[0][1]}", parse_mode="Markdown", reply_markup=keyboard)
+    await update.message.reply_text("Он не запутался.\n*Ты просто не увидела правду.*\n\nОтветь на 5 вопросов — получишь честный разбор.", parse_mode="Markdown")
+    kb = ReplyKeyboardMarkup([["Несколько недель", "1–3 месяца"], ["3–6 месяцев", "Полгода–год"], ["Больше года"]], resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("*01 —* Как давно вы знакомы?", parse_mode="Markdown", reply_markup=kb)
     return Q1
 
 async def q1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["q1"] = update.message.text
-    keyboard = ReplyKeyboardMarkup(QUESTIONS[1][2], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text(f"*02 —* {QUESTIONS[1][1]}", parse_mode="Markdown", reply_markup=keyboard)
+    kb = ReplyKeyboardMarkup([["Он перестал писать первым"], ["Отвечает, но редко и холодно"], ["Полностью пропал"], ["Сказал, что ему нужно время"]], resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("*02 —* Кто исчез / взял дистанцию?", parse_mode="Markdown", reply_markup=kb)
     return Q2
 
 async def q2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["q2"] = update.message.text
-    keyboard = ReplyKeyboardMarkup(QUESTIONS[2][2], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text(f"*03 —* {QUESTIONS[2][1]}", parse_mode="Markdown", reply_markup=keyboard)
+    kb = ReplyKeyboardMarkup([["Никогда", "Иногда, но редко"], ["Только по делу", "Иногда как раньше"]], resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("*03 —* Он пишет первым сейчас?", parse_mode="Markdown", reply_markup=kb)
     return Q3
 
 async def q3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["q3"] = update.message.text
-    keyboard = ReplyKeyboardMarkup(QUESTIONS[3][2], resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text(f"*04 —* {QUESTIONS[3][1]}", parse_mode="Markdown", reply_markup=keyboard)
+    kb = ReplyKeyboardMarkup([["Да, официальные"], ["Что-то было, без статуса"], ["Флирт и близость"], ["Нет, только общение"]], resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("*04 —* Были ли между вами отношения?", parse_mode="Markdown", reply_markup=kb)
     return Q4
 
 async def q4(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["q4"] = update.message.text
-    await update.message.reply_text(
-        "*05 —* Что он сказал перед тем, как взять дистанцию?\n\n_Напиши своими словами. Буквально._",
-        parse_mode="Markdown",
-        reply_markup=ReplyKeyboardRemove()
-    )
+    await update.message.reply_text("*05 —* Что он сказал перед тем, как взять дистанцию?\n\n_Напиши своими словами._", parse_mode="Markdown", reply_markup=ReplyKeyboardRemove())
     return Q5
 
 async def q5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["q5"] = update.message.text
     d = context.user_data
     await update.message.reply_text("Анализирую...", reply_markup=ReplyKeyboardRemove())
-    prompt = f"""Ты — жёсткий, прямолинейный психоаналитик. Без сочувствия. Без воды. Только правда. Обращайся к женщине на "ты". Пиши по-русски.
-
-Ситуация:
-- Знакомы: {d['q1']}
-- Что произошло: {d['q2']}
-- Пишет ли первым: {d['q3']}
-- Были ли отношения: {d['q4']}
-- Что он сказал перед дистанцией: "{d['q5']}"
-
-Дай разбор в 4–5 коротких абзацах. Каждый абзац — удар. Никаких утешений. Говори о паттерне поведения мужчины, что он на самом деле означает, и что ей нужно принять как факт. Закончи одной мощной финальной фразой-выводом. Только текст, без заголовков и маркеров."""
+    prompt = f"""Ты — жёсткий психоаналитик. Без сочувствия. Только правда. Обращайся на "ты". По-русски.
+Знакомы: {d['q1']}. Что произошло: {d['q2']}. Пишет первым: {d['q3']}. Отношения: {d['q4']}. Сказал: "{d['q5']}".
+Дай разбор в 4-5 коротких абзацах. Каждый — удар. Без утешений. Закончи мощной финальной фразой."""
     try:
         response = model.generate_content(prompt)
         text = response.text.strip()
@@ -95,12 +69,13 @@ async def q5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Окей. Напиши /start чтобы начать заново.", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("Напиши /start чтобы начать заново.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-async def main():
-    web_thread = threading.Thread(target=run_web_server, daemon=True)
-    web_thread.start()
+def main():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     conv = ConversationHandler(
@@ -115,8 +90,8 @@ async def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
     app.add_handler(conv)
-    print("Бот запущен...")
-    await app.run_polling()
+    print("Бот запущен!")
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
