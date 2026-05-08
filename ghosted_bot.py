@@ -6,14 +6,12 @@ from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 import google.generativeai as genai
 
-# ── CONFIG ──────────────────────────────────────────────
 TELEGRAM_TOKEN = "8774412957:AAGk2ywCIlK1jsXpqBfGZ5v--HiRCK92N_8"
 GEMINI_KEY = "AIzaSyBZETK-1hm4DDmh5gZd_ClEC4vI7kJlOTY"
 
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
 
-# ── STATES ──────────────────────────────────────────────
 Q1, Q2, Q3, Q4, Q5 = range(5)
 
 QUESTIONS = [
@@ -23,7 +21,6 @@ QUESTIONS = [
     ("q4", "Были ли между вами отношения?", [["Да, официальные"], ["Что-то было, без статуса"], ["Флирт и близость"], ["Нет, только общение"]]),
 ]
 
-# ── ПРОСТОЙ ВЕБ-СЕРВЕР ДЛЯ RENDER ──────────────────────
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -37,14 +34,12 @@ def run_web_server():
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
     server.serve_forever()
 
-# ── HANDLERS ────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
         "Он не запутался.\n*Ты просто не увидела правду.*\n\nОпиши ситуацию — получишь честный разбор без утешений.",
         parse_mode="Markdown"
     )
-    await asyncio.sleep(0.5)
     keyboard = ReplyKeyboardMarkup(QUESTIONS[0][2], resize_keyboard=True, one_time_keyboard=True)
     await update.message.reply_text(f"*01 —* {QUESTIONS[0][1]}", parse_mode="Markdown", reply_markup=keyboard)
     return Q1
@@ -79,9 +74,7 @@ async def q4(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def q5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["q5"] = update.message.text
     d = context.user_data
-
     await update.message.reply_text("Анализирую...", reply_markup=ReplyKeyboardRemove())
-
     prompt = f"""Ты — жёсткий, прямолинейный психоаналитик. Без сочувствия. Без воды. Только правда. Обращайся к женщине на "ты". Пиши по-русски.
 
 Ситуация:
@@ -92,15 +85,12 @@ async def q5(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Что он сказал перед дистанцией: "{d['q5']}"
 
 Дай разбор в 4–5 коротких абзацах. Каждый абзац — удар. Никаких утешений. Говори о паттерне поведения мужчины, что он на самом деле означает, и что ей нужно принять как факт. Закончи одной мощной финальной фразой-выводом. Только текст, без заголовков и маркеров."""
-
     try:
         response = model.generate_content(prompt)
         text = response.text.strip()
     except Exception as e:
         text = f"Ошибка: {e}"
-
     await update.message.reply_text(text)
-    await asyncio.sleep(1)
     await update.message.reply_text("Хочешь разобрать другую ситуацию? Нажми /start")
     return ConversationHandler.END
 
@@ -108,14 +98,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Окей. Напиши /start чтобы начать заново.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-# ── MAIN ────────────────────────────────────────────────
-def main():
-    # Запускаем веб-сервер в отдельном потоке
+async def main():
     web_thread = threading.Thread(target=run_web_server, daemon=True)
     web_thread.start()
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -127,10 +114,9 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-
     app.add_handler(conv)
     print("Бот запущен...")
-    app.run_polling()
+    await app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
